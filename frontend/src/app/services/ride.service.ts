@@ -18,10 +18,10 @@ export class RideService {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
     
-    // Replace 'ride-surge-engine-backend.onrender.com' with your actual Render URL after deploying the backend!
+    // Connect to live Back4app backend in production
     this.baseUrl = hostname === 'localhost' || hostname === '127.0.0.1'
       ? 'http://localhost:8080/api'
-      : `${protocol}//ride-surge-engine-backend.onrender.com/api`;
+      : `${protocol}//ridesurgebackend-uplcajni.b4a.run/api`;
   }
 
   async requestRide(payload: RideRequestPayload): Promise<any> {

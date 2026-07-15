@@ -24,10 +24,10 @@ export class WebSocketService {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
-    // Replace 'ride-surge-engine-backend.onrender.com' with your actual Render URL after deploying the backend!
+    // Connect to live Back4app backend in production
     const wsUrl = hostname === 'localhost' || hostname === '127.0.0.1'
       ? 'ws://localhost:8080/ws'
-      : `${protocol}//ride-surge-engine-backend.onrender.com/ws`;
+      : `${protocol}//ridesurgebackend-uplcajni.b4a.run/ws`;
 
     this.ws = new WebSocket(wsUrl);
 
