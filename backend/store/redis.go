@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -17,14 +18,14 @@ func InitRedis(redisURL string) {
 	var opt *redis.Options
 	var err error
 
-	if len(redisURL) < 8 || redisURL[:8] != "redis://" {
-		opt = &redis.Options{
-			Addr: redisURL,
-		}
-	} else {
+	if strings.HasPrefix(redisURL, "redis://") || strings.HasPrefix(redisURL, "rediss://") {
 		opt, err = redis.ParseURL(redisURL)
 		if err != nil {
 			log.Fatalf("Invalid Redis URL: %v", err)
+		}
+	} else {
+		opt = &redis.Options{
+			Addr: redisURL,
 		}
 	}
 
