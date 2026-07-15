@@ -21,7 +21,7 @@ export class RideService {
     // Connect to live Back4app backend in production
     this.baseUrl = hostname === 'localhost' || hostname === '127.0.0.1'
       ? 'http://localhost:8080/api'
-      : `${protocol}//ridesurgebackend-uplcajni.b4a.run/api`;
+      : `${protocol}//ridesurgebackend-nyo1.b4a.run/api`;
   }
 
   async requestRide(payload: RideRequestPayload): Promise<any> {
