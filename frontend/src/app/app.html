@@ -17,25 +17,41 @@
       <div class="card">
         <div class="section-title">Request a Ride</div>
         <form (submit)="bookRide($event)">
-          <div class="form-group">
-            <label for="pickup">Pickup Sector</label>
-            <select id="pickup" name="pickup" [(ngModel)]="bookingForm.pickup">
-              @for (z of availableZones; track z.id) {
-                <option [value]="z.id">{{ z.name }} ({{ z.surge }}x)</option>
-              }
-            </select>
+          <div class="form-group" style="position: relative;">
+            <label for="pickup">Pickup Location</label>
+            <input id="pickup" name="pickup" type="text" autocomplete="off" placeholder="Enter pickup address..."
+                   [(ngModel)]="searchQueries.pickup" (input)="onSearchInput('pickup')">
+            
+            @if (searchResults.pickup.length > 0) {
+              <div class="autocomplete-suggestions">
+                @for (item of searchResults.pickup; track item.place_id) {
+                  <div class="suggestion-item" (click)="selectLocation('pickup', item)">
+                    <div class="suggestion-name">{{ item.display_name.split(',')[0] }}</div>
+                    <div class="suggestion-address">{{ item.display_name.split(',').slice(1, 3).join(',') }}</div>
+                  </div>
+                }
+              </div>
+            }
           </div>
 
-          <div class="form-group">
-            <label for="destination">Destination Sector</label>
-            <select id="destination" name="destination" [(ngModel)]="bookingForm.destination">
-              @for (z of availableZones; track z.id) {
-                <option [value]="z.id">{{ z.name }}</option>
-              }
-            </select>
+          <div class="form-group" style="position: relative;">
+            <label for="destination">Destination Location</label>
+            <input id="destination" name="destination" type="text" autocomplete="off" placeholder="Enter destination address..."
+                   [(ngModel)]="searchQueries.destination" (input)="onSearchInput('destination')">
+            
+            @if (searchResults.destination.length > 0) {
+              <div class="autocomplete-suggestions">
+                @for (item of searchResults.destination; track item.place_id) {
+                  <div class="suggestion-item" (click)="selectLocation('destination', item)">
+                    <div class="suggestion-name">{{ item.display_name.split(',')[0] }}</div>
+                    <div class="suggestion-address">{{ item.display_name.split(',').slice(1, 3).join(',') }}</div>
+                  </div>
+                }
+              </div>
+            }
           </div>
 
-          <button type="submit" class="btn-primary" [disabled]="bookingStatus() === 'Searching' || !wsService.isConnected()">
+          <button type="submit" class="btn-primary" [disabled]="bookingStatus() === 'Searching' || !wsService.isConnected() || !selectedLocations.pickup || !selectedLocations.destination">
             {{ bookingStatus() === 'Searching' ? 'Finding Nearest Driver...' : 'Request Ride' }}
           </button>
         </form>

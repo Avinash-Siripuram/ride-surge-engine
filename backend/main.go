@@ -23,7 +23,7 @@ func main() {
 	// 1. Initialize Stores
 	// Local development address configurations
 	redisAddr := "localhost:6379"
-	pgDsn := "host=localhost port=5432 user=postgres password=postgrespassword dbname=ridesurge sslmode=disable"
+	pgDsn := "host=localhost port=5435 user=postgres password=postgrespassword dbname=ridesurge sslmode=disable"
 	kafkaBroker := "localhost:9092"
 
 	store.InitRedis(redisAddr)

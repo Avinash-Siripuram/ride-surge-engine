@@ -39,7 +39,11 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 
 	// Local properties
 	protected availableZones: ZoneData[] = [];
-	protected bookingForm = { pickup: '', destination: '' };
+	protected searchQueries = { pickup: '', destination: '' };
+	protected searchResults = { pickup: [] as any[], destination: [] as any[] };
+	protected selectedLocations = { pickup: null as any, destination: null as any };
+	private searchDebounces = { pickup: null as any, destination: null as any };
+	private searchMarkers = { pickup: null as L.Marker | null, destination: null as L.Marker | null };
 	protected eventLogs: Array<{ title: string; description: string; type: string; time: Date }> = [];
 
 	// Leaflet Map References
@@ -71,12 +75,6 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 			const zonesMap = await this.rideService.getZones();
 			this.availableZones = Object.values(zonesMap);
 			
-			// Set defaults for form selectors
-			if (this.availableZones.length > 0) {
-				this.bookingForm.pickup = this.availableZones[0].id;
-				this.bookingForm.destination = this.availableZones[1]?.id || this.availableZones[0].id;
-			}
-			
 			// Recalculate max surge
 			this.updateMaxSurgeSignal();
 		} catch (err) {
@@ -91,8 +89,8 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 			attributionControl: false
 		}).setView([17.385044, 78.486671], 13);
 
-		// Premium Dark-themed map tile layer (CartoDB Dark Matter)
-		L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+		// Detailed street map tile layer (OpenStreetMap)
+		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 			maxZoom: 19
 		}).addTo(this.map);
 
@@ -250,27 +248,91 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 		return zone ? zone.name : 'Unknown Sector';
 	}
 
+	protected onSearchInput(type: 'pickup' | 'destination') {
+		const query = this.searchQueries[type];
+		
+		if (this.searchDebounces[type]) {
+			clearTimeout(this.searchDebounces[type]);
+		}
+
+		if (!query || query.trim().length < 3) {
+			this.searchResults[type] = [];
+			return;
+		}
+
+		this.searchDebounces[type] = setTimeout(async () => {
+			try {
+				const results = await this.rideService.searchLocation(query);
+				this.searchResults[type] = results;
+			} catch (err) {
+				console.error(err);
+			}
+		}, 400);
+	}
+
+	protected selectLocation(type: 'pickup' | 'destination', item: any) {
+		this.selectedLocations[type] = item;
+		this.searchQueries[type] = item.display_name;
+		this.searchResults[type] = [];
+
+		const lat = parseFloat(item.lat);
+		const lon = parseFloat(item.lon);
+
+		this.placeLocationMarker(type, [lat, lon], item.display_name.split(',')[0]);
+
+		if (this.selectedLocations.pickup && this.selectedLocations.destination) {
+			const pLat = parseFloat(this.selectedLocations.pickup.lat);
+			const pLon = parseFloat(this.selectedLocations.pickup.lon);
+			const dLat = parseFloat(this.selectedLocations.destination.lat);
+			const dLon = parseFloat(this.selectedLocations.destination.lon);
+			const bounds = L.latLngBounds([[pLat, pLon], [dLat, dLon]]);
+			this.map.fitBounds(bounds, { padding: [50, 50] });
+		} else {
+			this.map.setView([lat, lon], 14);
+		}
+	}
+
+	private placeLocationMarker(type: 'pickup' | 'destination', latlng: L.LatLngTuple, title: string) {
+		if (this.searchMarkers[type]) {
+			this.searchMarkers[type]!.remove();
+		}
+
+		const color = type === 'pickup' ? '#f59e0b' : '#ef4444';
+		const iconHtml = `<div style="
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+			background-color: ${color};
+			box-shadow: 0 0 10px ${color};
+			border: 2.5px solid white;
+		"></div>`;
+
+		const customIcon = L.divIcon({
+			html: iconHtml,
+			iconSize: [14, 14],
+			className: 'custom-location-marker'
+		});
+
+		this.searchMarkers[type] = L.marker(latlng, { icon: customIcon })
+			.addTo(this.map)
+			.bindTooltip(title, { permanent: true, direction: 'top' });
+	}
+
 	protected bookRide(event: Event) {
 		event.preventDefault();
 		if (this.bookingStatus() === 'Searching') return;
 
-		const pickupZone = this.availableZones.find(z => z.id === this.bookingForm.pickup);
-		const destZone = this.availableZones.find(z => z.id === this.bookingForm.destination);
+		const pickup = this.selectedLocations.pickup;
+		const dest = this.selectedLocations.destination;
 
-		if (!pickupZone || !destZone) return;
-
-		// Calculate coordinates around center of zones
-		const pickupLat = (pickupZone.min_lat + pickupZone.max_lat) / 2;
-		const pickupLng = (pickupZone.min_lng + pickupZone.max_lng) / 2;
-		const destLat = (destZone.min_lat + destZone.max_lat) / 2;
-		const destLng = (destZone.min_lng + destZone.max_lng) / 2;
+		if (!pickup || !dest) return;
 
 		const payload: RideRequestPayload = {
 			passenger_id: 'user-1',
-			pickup_lat: pickupLat,
-			pickup_lng: pickupLng,
-			destination_lat: destLat,
-			destination_lng: destLng
+			pickup_lat: parseFloat(pickup.lat),
+			pickup_lng: parseFloat(pickup.lon),
+			destination_lat: parseFloat(dest.lat),
+			destination_lng: parseFloat(dest.lon)
 		};
 
 		this.bookingStatus.set('Searching');

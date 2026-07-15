@@ -35,4 +35,24 @@ export class RideService {
     const res = await fetch(`${this.baseUrl}/zones`);
     return res.json();
   }
+
+  async searchLocation(query: string): Promise<any[]> {
+    if (!query || query.trim().length < 3) return [];
+    
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in&viewbox=78.2,17.2,78.7,17.6&bounded=1`;
+    
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Accept-Language': 'en',
+          'User-Agent': 'ride-surge-engine-app'
+        }
+      });
+      if (!res.ok) return [];
+      return res.json();
+    } catch (err) {
+      console.error('Geocoding search failed:', err);
+      return [];
+    }
+  }
 }
