@@ -27,7 +27,7 @@ export class WebSocketService {
     // Connect to live Back4app backend in production
     const wsUrl = hostname === 'localhost' || hostname === '127.0.0.1'
       ? 'ws://localhost:8080/ws'
-      : `${protocol}//ridesurgebackend-nyo1.b4a.run/ws`;
+      : `${protocol}//ridesurgebackend-mxm9myo1.b4a.run/ws`;
 
     this.ws = new WebSocket(wsUrl);
 
