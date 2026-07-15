@@ -1,0 +1,120 @@
+<div class="dashboard-container">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand-header">
+      <div class="logo-icon">🚗</div>
+      <div class="brand-title">
+        <h1>SURGE MATCH</h1>
+        <div class="connection-badge">
+          <span class="dot" [class.connected]="wsService.isConnected()"></span>
+          {{ wsService.isConnected() ? 'Live System Connected' : 'Connecting to Server...' }}
+        </div>
+      </div>
+    </div>
+
+    <div class="control-panel">
+      <!-- Ride Booking Card -->
+      <div class="card">
+        <div class="section-title">Request a Ride</div>
+        <form (submit)="bookRide($event)">
+          <div class="form-group">
+            <label for="pickup">Pickup Sector</label>
+            <select id="pickup" name="pickup" [(ngModel)]="bookingForm.pickup">
+              @for (z of availableZones; track z.id) {
+                <option [value]="z.id">{{ z.name }} ({{ z.surge }}x)</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="destination">Destination Sector</label>
+            <select id="destination" name="destination" [(ngModel)]="bookingForm.destination">
+              @for (z of availableZones; track z.id) {
+                <option [value]="z.id">{{ z.name }}</option>
+              }
+            </select>
+          </div>
+
+          <button type="submit" class="btn-primary" [disabled]="bookingStatus() === 'Searching' || !wsService.isConnected()">
+            {{ bookingStatus() === 'Searching' ? 'Finding Nearest Driver...' : 'Request Ride' }}
+          </button>
+        </form>
+
+        <!-- Booking Status Overlay -->
+        @if (bookingStatus() !== 'Idle') {
+          <div class="status-indicator" [class.searching]="bookingStatus() === 'Searching'" [class.matched]="bookingStatus() === 'Matched'">
+            @if (bookingStatus() === 'Searching') {
+              <span>⚡ Sending Request to Dispatch Pipeline...</span>
+            } @else if (bookingStatus() === 'Matched') {
+              <div>
+                <strong>Matched with {{ matchedDriver()?.name }}!</strong>
+                <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 4px;">
+                  Fare: ${{ matchedRide()?.fare | number:'1.2-2' }} (Includes {{ matchedRide()?.surge }}x Surge)
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Real-time Stats -->
+      <div class="card">
+        <div class="section-title">Live Engine Stats</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
+          <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #9ca3af;">Active Drivers</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6; margin-top: 4px;">{{ activeDriversCount() }}</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #9ca3af;">Highest Surge</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #ef4444; margin-top: 4px;">{{ maxSurge() }}x</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event Feed logs -->
+      <div class="card" style="flex: 1; display: flex; flex-direction: column; min-height: 200px;">
+        <div class="section-title">System Event Pipeline (Kafka)</div>
+        <div class="event-feed" style="flex: 1; margin-top: 8px;">
+          @for (event of eventLogs; track event.time) {
+            <div class="feed-item" [class.matched]="event.type === 'matched'" [class.request]="event.type === 'requested'">
+              <div style="display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 2px;">
+                <span>{{ event.title }}</span>
+                <span style="color: #9ca3af; font-size: 0.7rem;">{{ event.time | date:'HH:mm:ss' }}</span>
+              </div>
+              <div>{{ event.description }}</div>
+            </div>
+          } @empty {
+            <div style="text-align: center; color: #6b7280; font-size: 0.8rem; padding: 20px;">
+              Waiting for live Kafka events...
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Map Display Container -->
+  <main class="map-container">
+    <div id="map"></div>
+
+    <!-- Surge Pricing Heatmap Legend -->
+    <div class="legend-overlay">
+      <div class="legend-title">Surge Pricing Guide</div>
+      <div class="legend-items">
+        <div class="legend-item">
+          <div class="color-box" style="background: rgba(16, 185, 129, 0.4); border: 1px solid #10b981;"></div>
+          <span>1.0x Normal Fare</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: rgba(245, 158, 11, 0.4); border: 1px solid #f59e0b;"></div>
+          <span>1.1x - 1.9x Moderate Surge</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: rgba(239, 68, 68, 0.4); border: 1px solid #ef4444;"></div>
+          <span>2.0x+ High Demand Surge</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
