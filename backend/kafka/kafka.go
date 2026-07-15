@@ -43,7 +43,7 @@ func InitKafka(broker string) {
 		} else {
 			transport = &kafka.Transport{
 				SASL: mechanism,
-				TLS:  &tls.Config{},
+				TLS:  &tls.Config{InsecureSkipVerify: true},
 			}
 			log.Println("Kafka configured with SASL/SCRAM authentication & TLS")
 		}
@@ -70,7 +70,7 @@ func ensureTopicExists(broker string, topic string, saslUser string, saslPass st
 		if err == nil {
 			dialer = kafka.Dialer{
 				SASLMechanism: mechanism,
-				TLS:           &tls.Config{},
+				TLS:           &tls.Config{InsecureSkipVerify: true},
 			}
 		} else {
 			log.Printf("SCRAM setup error for dialer: %v", err)

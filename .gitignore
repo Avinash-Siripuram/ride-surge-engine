@@ -1,0 +1,15 @@
+# Secret credentials scratchpad
+scratch/
+scratch/cloud_creds.txt
+
+# Local build binaries
+backend/server.exe
+server.exe
+
+# Local IDE directories
+.idea/
+.vscode/
+
+# Node dependencies
+node_modules/
+dist/
