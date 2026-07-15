@@ -21,7 +21,15 @@ export class WebSocketService {
   }
 
   private connect() {
-    this.ws = new WebSocket('ws://localhost:8080/ws');
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // Replace 'ride-surge-engine-backend.onrender.com' with your actual Render URL after deploying the backend!
+    const wsUrl = hostname === 'localhost' || hostname === '127.0.0.1'
+      ? 'ws://localhost:8080/ws'
+      : `${protocol}//ride-surge-engine-backend.onrender.com/ws`;
+
+    this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
       console.log('Connected to WebSocket server');

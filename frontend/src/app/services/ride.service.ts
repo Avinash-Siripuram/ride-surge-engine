@@ -12,7 +12,17 @@ export interface RideRequestPayload {
   providedIn: 'root'
 })
 export class RideService {
-  private baseUrl = 'http://localhost:8080/api';
+  private baseUrl = '';
+
+  constructor() {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Replace 'ride-surge-engine-backend.onrender.com' with your actual Render URL after deploying the backend!
+    this.baseUrl = hostname === 'localhost' || hostname === '127.0.0.1'
+      ? 'http://localhost:8080/api'
+      : `${protocol}//ride-surge-engine-backend.onrender.com/api`;
+  }
 
   async requestRide(payload: RideRequestPayload): Promise<any> {
     const res = await fetch(`${this.baseUrl}/rides/request`, {

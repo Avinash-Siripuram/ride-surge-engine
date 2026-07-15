@@ -2,12 +2,15 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/scram"
 )
 
 var Writer *kafka.Writer
@@ -22,10 +25,28 @@ const (
 
 // InitKafka initializes the Kafka writer connection pool and pre-creates topics
 func InitKafka(broker string) {
+	saslUser := os.Getenv("KAFKA_SASL_USER")
+	saslPass := os.Getenv("KAFKA_SASL_PASS")
+
 	// Pre-create topics programmatically
 	topics := []string{TopicLocationUpdated, TopicRideRequested, TopicRideMatched, TopicSurgeCalculated}
 	for _, t := range topics {
-		ensureTopicExists(broker, t)
+		ensureTopicExists(broker, t, saslUser, saslPass)
+	}
+
+	var transport *kafka.Transport
+
+	if saslUser != "" && saslPass != "" {
+		mechanism, err := scram.Mechanism(scram.SHA256, saslUser, saslPass)
+		if err != nil {
+			log.Printf("Failed to create SCRAM SASL mechanism: %v", err)
+		} else {
+			transport = &kafka.Transport{
+				SASL: mechanism,
+				TLS:  &tls.Config{},
+			}
+			log.Println("Kafka configured with SASL/SCRAM authentication & TLS")
+		}
 	}
 
 	Writer = &kafka.Writer{
@@ -33,11 +54,30 @@ func InitKafka(broker string) {
 		Balancer:               &kafka.LeastBytes{},
 		AllowAutoTopicCreation: true,
 	}
+
+	if transport != nil {
+		Writer.Transport = transport
+	}
+
 	log.Printf("Kafka client initialized for broker %s", broker)
 }
 
-func ensureTopicExists(broker string, topic string) {
-	conn, err := kafka.Dial("tcp", broker)
+func ensureTopicExists(broker string, topic string, saslUser string, saslPass string) {
+	var dialer kafka.Dialer
+
+	if saslUser != "" && saslPass != "" {
+		mechanism, err := scram.Mechanism(scram.SHA256, saslUser, saslPass)
+		if err == nil {
+			dialer = kafka.Dialer{
+				SASLMechanism: mechanism,
+				TLS:           &tls.Config{},
+			}
+		} else {
+			log.Printf("SCRAM setup error for dialer: %v", err)
+		}
+	}
+
+	conn, err := dialer.Dial("tcp", broker)
 	if err != nil {
 		log.Printf("Failed to dial Kafka broker: %v", err)
 		return
@@ -51,7 +91,14 @@ func ensureTopicExists(broker string, topic string) {
 	}
 
 	controllerAddr := net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port))
-	controllerConn, err := kafka.Dial("tcp", controllerAddr)
+	
+	var controllerConn *kafka.Conn
+	if saslUser != "" && saslPass != "" {
+		controllerConn, err = dialer.Dial("tcp", controllerAddr)
+	} else {
+		controllerConn, err = kafka.Dial("tcp", controllerAddr)
+	}
+
 	if err != nil {
 		log.Printf("Failed to dial controller at %s: %v", controllerAddr, err)
 		return

@@ -13,12 +13,24 @@ var ctx = context.Background()
 
 const DriversGeoKey = "drivers:locations"
 
-func InitRedis(addr string) {
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr: addr,
-	})
+func InitRedis(redisURL string) {
+	var opt *redis.Options
+	var err error
 
-	_, err := RedisClient.Ping(ctx).Result()
+	if len(redisURL) < 8 || redisURL[:8] != "redis://" {
+		opt = &redis.Options{
+			Addr: redisURL,
+		}
+	} else {
+		opt, err = redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("Invalid Redis URL: %v", err)
+		}
+	}
+
+	RedisClient = redis.NewClient(opt)
+
+	_, err = RedisClient.Ping(ctx).Result()
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}

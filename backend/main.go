@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,10 +22,20 @@ func main() {
 	log.Println("Starting Ride-Matching & Dynamic Pricing Engine...")
 
 	// 1. Initialize Stores
-	// Local development address configurations
-	redisAddr := "localhost:6379"
-	pgDsn := "host=localhost port=5435 user=postgres password=postgrespassword dbname=ridesurge sslmode=disable"
-	kafkaBroker := "localhost:9092"
+	redisAddr := os.Getenv("REDIS_URL")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	pgDsn := os.Getenv("DATABASE_URL")
+	if pgDsn == "" {
+		pgDsn = "host=localhost port=5435 user=postgres password=postgrespassword dbname=ridesurge sslmode=disable"
+	}
+
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	if kafkaBroker == "" {
+		kafkaBroker = "localhost:9092"
+	}
 
 	store.InitRedis(redisAddr)
 	store.InitDB(pgDsn)
@@ -151,9 +162,12 @@ func main() {
 		})
 	})
 
-	port := ":8080"
-	fmt.Printf("Server listening on http://localhost%s\n", port)
-	if err := router.Run(port); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	fmt.Printf("Server listening on port %s\n", port)
+	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to run HTTP server: %v", err)
 	}
 }
