@@ -13,11 +13,11 @@ type Driver struct {
 	Status    string  `json:"status"` // "available", "busy", "offline"
 }
 
-// Center of Hyderabad, India
+// Center of Hyderabad, India (Hitec City / Madhapur IT Corridor)
 const (
-	CenterLat = 17.385044
-	CenterLng = 78.486671
-	GeoOffset = 0.035 // Boundary range for simulator
+	CenterLat = 17.4344
+	CenterLng = 78.3866
+	GeoOffset = 0.045 // Slightly wider boundary to cover Gachibowli to Kukatpally
 )
 
 // ActiveDrivers stores our in-memory driver references
