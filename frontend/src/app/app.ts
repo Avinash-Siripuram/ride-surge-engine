@@ -36,6 +36,11 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 	protected readonly bookingStatus = signal<'Idle' | 'Searching' | 'Matched'>('Idle');
 	protected readonly matchedDriver = signal<any>(null);
 	protected readonly matchedRide = signal<any>(null);
+	protected readonly busyDriversCount = signal(0);
+
+	// Simulation controls
+	protected simulationSpeed = 1.0;
+	protected isDarkTheme = true;
 
 	// Local properties
 	protected availableZones: ZoneData[] = [];
@@ -45,6 +50,11 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 	private searchDebounces = { pickup: null as any, destination: null as any };
 	private searchMarkers = { pickup: null as L.Marker | null, destination: null as L.Marker | null };
 	protected eventLogs: Array<{ title: string; description: string; type: string; time: Date }> = [];
+
+	// Animation & state maps
+	private driverAnimations = new Map<string, { startLat: number; startLng: number; endLat: number; endLng: number; startTime: number; duration: number }>();
+	private driverStatuses = new Map<string, string>();
+	private animationFrameId: number | null = null;
 
 	// Leaflet Map References
 	private map!: L.Map;
@@ -68,6 +78,9 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 
 	ngOnDestroy() {
 		this.subs.forEach(s => s.unsubscribe());
+		if (this.animationFrameId !== null) {
+			cancelAnimationFrame(this.animationFrameId);
+		}
 	}
 
 	private async loadInitialZones() {
@@ -83,19 +96,23 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 	}
 
 	private initMap() {
-		// Centered around Hyderabad, India
+		// Centered around the Hyderabad Simulation Grid Center (Hitec City / Madhapur)
 		this.map = L.map('map', {
 			zoomControl: true,
 			attributionControl: false
-		}).setView([17.385044, 78.486671], 13);
+		}).setView([17.4344, 78.3866], 13);
 
-		// Detailed street map tile layer (OpenStreetMap)
-		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-			maxZoom: 19
+		// Default to premium CartoDB Dark Matter theme
+		this.tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+			maxZoom: 19,
+			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
 		}).addTo(this.map);
 
 		// Render Zone Polygons
 		this.drawZones();
+
+		// Start smooth coordinate interpolation loop
+		this.startAnimationLoop();
 	}
 
 	private drawZones() {
@@ -206,11 +223,9 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 
 	private updateDriverMarker(driver: any) {
 		const position: L.LatLngExpression = [driver.latitude, driver.longitude];
+		this.driverStatuses.set(driver.id, driver.status);
 		
-		// Custom styling for driver marker: neon blue dot if available, grey/red if busy
-		const colorClass = driver.status === 'available' ? 'bg-blue-500' : 'bg-red-500';
 		const shadowColor = driver.status === 'available' ? 'rgba(59, 130, 246, 0.6)' : 'rgba(239, 68, 68, 0.4)';
-		
 		const iconHtml = `<div style="
 			width: 12px;
 			height: 12px;
@@ -228,7 +243,19 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 
 		if (this.driverMarkers.has(driver.id)) {
 			const marker = this.driverMarkers.get(driver.id)!;
-			marker.setLatLng(position);
+			marker.setIcon(customIcon);
+			marker.setTooltipContent(`Driver: ${driver.name}<br>Status: ${driver.status}`);
+
+			// Start smooth gliding coordinate interpolation
+			const currentLatLng = marker.getLatLng();
+			this.driverAnimations.set(driver.id, {
+				startLat: currentLatLng.lat,
+				startLng: currentLatLng.lng,
+				endLat: driver.latitude,
+				endLng: driver.longitude,
+				startTime: performance.now(),
+				duration: 1500 / this.simulationSpeed
+			});
 		} else {
 			const marker = L.marker(position, { icon: customIcon })
 				.addTo(this.map)
@@ -241,6 +268,11 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 
 	private updateActiveDriversCount() {
 		this.activeDriversCount.set(this.driverMarkers.size);
+		let busy = 0;
+		this.driverStatuses.forEach(status => {
+			if (status === 'busy') busy++;
+		});
+		this.busyDriversCount.set(busy);
 	}
 
 	private getZoneName(lat: number, lng: number): string {
@@ -397,5 +429,59 @@ export class App implements OnInit, OnDestroy, AfterViewInit {
 		if (this.eventLogs.length > 30) {
 			this.eventLogs.pop();
 		}
+	}
+
+	protected toggleMapTheme() {
+		this.isDarkTheme = !this.isDarkTheme;
+		this.map.removeLayer(this.tileLayer);
+
+		const url = this.isDarkTheme
+			? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+			: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+		const attribution = this.isDarkTheme
+			? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+			: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+		this.tileLayer = L.tileLayer(url, {
+			maxZoom: 19,
+			attribution: attribution
+		}).addTo(this.map);
+	}
+
+	protected async changeSimulationSpeed() {
+		try {
+			await this.rideService.setSimulationSpeed(this.simulationSpeed);
+			this.addEventLog('Simulator Speed', `Simulation speed set to ${this.simulationSpeed}x`, 'system');
+		} catch (err) {
+			console.error('Failed to change simulation speed:', err);
+		}
+	}
+
+	private startAnimationLoop() {
+		const loop = (timestamp: number) => {
+			this.interpolateDriverPositions(timestamp);
+			this.animationFrameId = requestAnimationFrame(loop);
+		};
+		this.animationFrameId = requestAnimationFrame(loop);
+	}
+
+	private interpolateDriverPositions(timestamp: number) {
+		this.driverAnimations.forEach((anim, driverId) => {
+			const marker = this.driverMarkers.get(driverId);
+			if (!marker) return;
+
+			const elapsed = timestamp - anim.startTime;
+			const progress = Math.min(elapsed / anim.duration, 1);
+
+			const curLat = anim.startLat + (anim.endLat - anim.startLat) * progress;
+			const curLng = anim.startLng + (anim.endLng - anim.startLng) * progress;
+
+			marker.setLatLng([curLat, curLng]);
+
+			if (progress >= 1) {
+				this.driverAnimations.delete(driverId);
+			}
+		});
 	}
 }

@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"math/rand"
+	"sync/atomic"
 	"time"
 )
 
@@ -22,9 +23,19 @@ const (
 
 // ActiveDrivers stores our in-memory driver references
 var ActiveDrivers = make(map[string]*Driver)
+var currentInterval int64 = int64(1500 * time.Millisecond)
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+// SetSimulationInterval updates the simulation speed dynamically
+func SetSimulationInterval(d time.Duration) {
+	atomic.StoreInt64(&currentInterval, int64(d))
+}
+
+func getSimulationInterval() time.Duration {
+	return time.Duration(atomic.LoadInt64(&currentInterval))
 }
 
 // GenerateDrivers initializes a set of simulated drivers
@@ -59,11 +70,10 @@ func GenerateDrivers(count int) {
 
 // StartSimulation moves drivers randomly and triggers callbacks
 func StartSimulation(interval time.Duration, onUpdate func(*Driver)) {
+	atomic.StoreInt64(&currentInterval, int64(interval))
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for range ticker.C {
+		for {
+			time.Sleep(getSimulationInterval())
 			for _, driver := range ActiveDrivers {
 				if driver.Status == "busy" {
 					continue

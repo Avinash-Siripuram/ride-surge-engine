@@ -112,6 +112,27 @@ func main() {
 		c.JSON(http.StatusOK, simulator.ActiveDrivers)
 	})
 
+	router.POST("/api/simulator/speed", func(c *gin.Context) {
+		var req struct {
+			Speed float64 `json:"speed"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.Speed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "speed must be greater than 0"})
+			return
+		}
+
+		baseInterval := 1500 * time.Millisecond
+		newInterval := time.Duration(float64(baseInterval) / req.Speed)
+		simulator.SetSimulationInterval(newInterval)
+
+		c.JSON(http.StatusOK, gin.H{"status": "success", "interval_ms": newInterval.Milliseconds()})
+	})
+
 	router.POST("/api/rides/request", func(c *gin.Context) {
 		var req matching.RideRequest
 		if err := c.ShouldBindJSON(&req); err != nil {

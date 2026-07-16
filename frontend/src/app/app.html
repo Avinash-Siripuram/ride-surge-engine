@@ -7,9 +7,12 @@
         <h1>SURGE MATCH</h1>
         <div class="connection-badge">
           <span class="dot" [class.connected]="wsService.isConnected()"></span>
-          {{ wsService.isConnected() ? 'Live System Connected' : 'Connecting to Server...' }}
+          {{ wsService.isConnected() ? 'Live System Connected' : 'Connecting...' }}
         </div>
       </div>
+      <button class="btn-theme-toggle" (click)="toggleMapTheme()">
+        {{ isDarkTheme ? '☀️ Light' : '🌑 Dark' }}
+      </button>
     </div>
 
     <div class="control-panel">
@@ -73,38 +76,74 @@
         }
       </div>
 
-      <!-- Real-time Stats -->
+      <!-- Simulation Speed Controls -->
       <div class="card">
-        <div class="section-title">Live Engine Stats</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
-          <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 0.75rem; color: #9ca3af;">Active Drivers</div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6; margin-top: 4px;">{{ activeDriversCount() }}</div>
-          </div>
-          <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 0.75rem; color: #9ca3af;">Highest Surge</div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #ef4444; margin-top: 4px;">{{ maxSurge() }}x</div>
+        <div class="section-title">Simulation Speed</div>
+        <div class="speed-control-container">
+          <input type="range" class="speed-slider" min="1" max="5" step="1" [(ngModel)]="simulationSpeed" (change)="changeSimulationSpeed()">
+          <div class="speed-labels">
+            <span>1x (Normal)</span>
+            <span>2x</span>
+            <span>3x</span>
+            <span>4x</span>
+            <span>5x (Fast)</span>
           </div>
         </div>
       </div>
 
-      <!-- Event Feed logs -->
-      <div class="card" style="flex: 1; display: flex; flex-direction: column; min-height: 200px;">
-        <div class="section-title">System Event Pipeline (Kafka)</div>
-        <div class="event-feed" style="flex: 1; margin-top: 8px;">
-          @for (event of eventLogs; track event.time) {
-            <div class="feed-item" [class.matched]="event.type === 'matched'" [class.request]="event.type === 'requested'">
-              <div style="display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 2px;">
-                <span>{{ event.title }}</span>
-                <span style="color: #9ca3af; font-size: 0.7rem;">{{ event.time | date:'HH:mm:ss' }}</span>
+      <!-- Real-time Stats -->
+      <div class="card">
+        <div class="section-title">Live Engine Stats</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
+          <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.1);">
+            <div style="font-size: 0.75rem; color: #9ca3af;">Available Drivers</div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: #3b82f6; margin-top: 4px;">
+              {{ activeDriversCount() - busyDriversCount() }}
+            </div>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(239, 68, 68, 0.1);">
+            <div style="font-size: 0.75rem; color: #9ca3af;">Busy Drivers</div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: #ef4444; margin-top: 4px;">
+              {{ busyDriversCount() }}
+            </div>
+          </div>
+        </div>
+        <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid rgba(251, 191, 36, 0.1); margin-top: 10px;">
+          <div style="font-size: 0.75rem; color: #9ca3af;">Highest Surge Multiplier</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: #fbbf24; margin-top: 4px;">{{ maxSurge() }}x</div>
+        </div>
+      </div>
+
+      <!-- Event Feed logs (Terminal Window) -->
+      <div class="card" style="flex: 1; display: flex; flex-direction: column; min-height: 220px; padding: 0; overflow: hidden; border-radius: 12px;">
+        <div class="terminal-window">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <div class="terminal-title">kafka-consumer.sh</div>
+            <div class="terminal-status">
+              <span class="terminal-pulse-dot"></span>
+              <span>LIVE</span>
+            </div>
+          </div>
+          <div class="terminal-body">
+            @for (event of eventLogs; track event.time) {
+              <div class="terminal-log-item">
+                <div class="terminal-log-header">
+                  <span class="badge" [class.matched]="event.type === 'matched'" [class.requested]="event.type === 'requested'" [class.system]="event.type === 'system'" [class.failed]="event.type === 'failed'">
+                    {{ event.type }}
+                  </span>
+                  <span class="terminal-log-time">{{ event.time | date:'HH:mm:ss' }}</span>
+                </div>
+                <div class="terminal-log-desc">{{ event.description }}</div>
               </div>
-              <div>{{ event.description }}</div>
-            </div>
-          } @empty {
-            <div style="text-align: center; color: #6b7280; font-size: 0.8rem; padding: 20px;">
-              Waiting for live Kafka events...
-            </div>
-          }
+            } @empty {
+              <div style="text-align: center; color: #6b7280; font-size: 0.8rem; padding-top: 60px;">
+                Awaiting streaming events from Aiven Kafka...
+              </div>
+            }
+          </div>
         </div>
       </div>
     </div>

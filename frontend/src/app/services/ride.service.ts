@@ -65,4 +65,20 @@ export class RideService {
       return [];
     }
   }
+
+  async setSimulationSpeed(speed: number): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/simulator/speed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ speed })
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to update simulation speed');
+    }
+
+    return res.json();
+  }
 }
